@@ -1,7 +1,7 @@
 """
 Main script.
 """
-import s3fs
+# import s3fs
 import sys
 import fasttext
 import mlflow
@@ -96,9 +96,12 @@ def train(
         inference_params = {
             "k": 1,
         }
-        # Infer the signature including parameters
+        
+        # Define the signature
         signature = mlflow.models.infer_signature(
-            params=inference_params,
+            model_input=["toto", "titi"], 
+            model_output=None, 
+            params=inference_params
         )
 
         mlflow.pyfunc.log_model(

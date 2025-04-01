@@ -98,11 +98,11 @@ async def predict(
 
         Dict: Response containing NACE codes.
     """
-    query = {
-        "query": [description],
-        "k": nb_echoes_max,
-    }
-
-    predictions = model.predict(query)
+    # query = {
+    #     "query": [description],
+    #     "k": nb_echoes_max,
+    # }
+    description = [description]
+    predictions = model.predict(description, params={"k": nb_echoes_max})
 
     return predictions[0]
