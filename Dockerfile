@@ -1,14 +1,11 @@
-FROM inseefrlab/onyxia-python-minimal:py3.10.9
+FROM daskdev/dask-xgboost:latest
 
-# set current work dir
-WORKDIR /formation-mlops
+# Installer les dépendances Python supplémentaires
+RUN pip install fastapi uvicorn mlflow lz4 psutil
 
-# copy project files to the image
-COPY --chown=${USERNAME}:${GROUPNAME} . .
-
-# install all the requirements and import corpus
-RUN pip install --no-cache-dir --upgrade -r requirements.txt && \
-    python -m nltk.downloader stopwords
+# Copier votre application dans l'image Docker
+COPY . /app
+WORKDIR /app
 
 # launch the unicorn server to run the api
 EXPOSE 8000

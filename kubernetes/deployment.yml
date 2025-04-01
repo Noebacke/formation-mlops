@@ -21,7 +21,7 @@ spec:
             - name: MLFLOW_TRACKING_URI
               value: https://user-nbacke-mlflow.user.lab.sspcloud.fr
             - name: MLFLOW_MODEL_NAME
-              value: fasttext
+              value: XGboost_hospital
             - name: MLFLOW_MODEL_VERSION
               value: "2"
           resources:

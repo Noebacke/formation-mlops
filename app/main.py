@@ -1,65 +1,43 @@
-"""
-Main file for the API.
-"""
 import os
 from contextlib import asynccontextmanager
-from typing import List, Dict
 from fastapi import FastAPI
+import mlflow
+import mlflow.xgboost
+import numpy as np
 from pydantic import BaseModel
+from dotenv import load_dotenv
+from fastapi.middleware.cors import CORSMiddleware
 
-from app.utils import (
-    get_model,
-)
+
+# Charger les variables d'environnement depuis le fichier .env
+load_dotenv()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Asynchronous context manager for managing the lifespan of the API.
-    This context manager is used to load the ML model and other resources
-    when the API starts and clean them up when the API stops.
-    Args:
-        app (FastAPI): The FastAPI application.
-    """
     global model
-
-    model_name: str = os.getenv("MLFLOW_MODEL_NAME")
-    model_version: str = os.getenv("MLFLOW_MODEL_VERSION")
-    # Load the ML model
-    model = get_model(model_name, model_version)
+    model_name = os.getenv("MLFLOW_MODEL_NAME")
+    model_version = os.getenv("MLFLOW_MODEL_VERSION")
+    model_uri = f"models:/{model_name}/{model_version}"
+    model = mlflow.xgboost.load_model(model_uri)
     yield
 
 
-class ActivityDescriptions(BaseModel):
-    """
-    Pydantic BaseModel for representing the input data for the API.
-    This BaseModel defines the structure of the input data required
-    for the API's "/predict-batch" endpoint.
-
-    Attributes:
-        text_descriptions (List[str]): The text descriptions.
-    """
-
-    text_descriptions: List[str]
-
-    class Config:
-        schema_extra = {
-            "example": {
-                "text_description": [
-                    (
-                        "LOUEUR MEUBLE NON PROFESSIONNEL EN RESIDENCE DE "
-                        "SERVICES (CODE APE 6820A Location de logements)"
-                    )
-                ]
-            }
-        }
+class PredictionRequest(BaseModel):
+    chol: float
+    crp: float
+    phos: float
 
 
-app = FastAPI(
-    lifespan=lifespan,
-    title="NACE classifier",
-    description="Classifier for firm activity descriptions",
-    version="0.0.1",
+app = FastAPI(lifespan=lifespan, root_path="/proxy/8000")
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -77,32 +55,20 @@ def show_welcome_page():
     }
 
 
-@app.get("/predict", tags=["Predict"])
-async def predict(
-    description: str,
-    nb_echoes_max: int = 5,
-) -> Dict:
-    """
-    Predict NACE code.
-    This endpoint accepts input data as query parameters and uses the loaded
-    ML model to predict the NACE code based on the input data.
+@app.post("/predict")
+async def predict(request: PredictionRequest):
+    data = np.array([[request.chol, request.crp, request.phos]])
+    probabilities = model.predict_proba(data)[0]
+    
+    # Déterminer la classe prédite
+    prediction = int(np.argmax(probabilities))  
+    max_probability = float(probabilities[prediction])  # Probabilité associée
 
-    Args:
+    return {
+        "prediction": prediction,
+        "probability": max_probability
+    }
 
-        description (str): The activity description.
-
-        nb_echoes_max (int): Maximum number of echoes to consider.
-            Default is 5.
-
-    Returns:
-
-        Dict: Response containing NACE codes.
-    """
-    # query = {
-    #     "query": [description],
-    #     "k": nb_echoes_max,
-    # }
-    description = [description]
-    predictions = model.predict(description, params={"k": nb_echoes_max})
-
-    return predictions[0]
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
